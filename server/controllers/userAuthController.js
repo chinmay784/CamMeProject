@@ -651,7 +651,7 @@ exports.finalizeLinkAccount = async (req, res) => {
         
         await mainUser.save();
 
-        res.status(200).json({ message: "Account successfully linked." });
+        res.status(200).json({ message: "Account successfully linked.",mainUser });
 
     } catch (err) {
         console.error("Finalize Link Error:", err);
