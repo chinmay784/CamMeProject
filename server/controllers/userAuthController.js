@@ -133,7 +133,8 @@ exports.otpVerify = async (req, res) => {
 
         return res.status(200).json({
             sucess: true,
-            message: "OTP verified. Account Activated"
+            message: "OTP verified. Account Activated",
+            user,
         })
     } catch (error) {
         console.log("error in Otpverify ", error.message)
