@@ -6,6 +6,7 @@ const nodeMailer = require("nodemailer");
 const User = require("../models/userModel");
 const twilio = require("twilio");
 const BlacklistedToken = require("../models/BlacklistedToken");
+const ConnectionFilter = require("../models/connectionFilterModel")
 
 
 const transPorter = nodeMailer.createTransport({
