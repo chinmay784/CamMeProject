@@ -13,7 +13,12 @@ const {
     approveLinkAccount,
     finalizeLinkAccount,
     rejectLinkAccount,
-    logoutUser
+    logoutUser,
+    getMatchedIntrested,
+    getHashTagContent,
+    getAllowLocation,
+    sendFriendRequest,
+    acceptFriendRequest
 } = require('../controllers/userAuthController');
 const { authMiddelWere } = require('../middelwere/authMiddelWere');
 const {upload} = require("../middelwere/multer");
@@ -36,5 +41,10 @@ router.get("/account-link/approve/:userId/:requesterId", approveLinkAccount)
 router.post("/account-link/verify-otp", finalizeLinkAccount)
 router.post("/account-link/reject/:userId/:requesterId", rejectLinkAccount)
 router.post("/logout", checkBlacklist,logoutUser);
+router.get("/getMatchIntrested",authMiddelWere,getMatchedIntrested);
+router.get("/getHashTagContent",authMiddelWere,getHashTagContent);
+router.get("/getLocation",authMiddelWere,getAllowLocation);
+router.post("/inviteAFriend/:reciverId",authMiddelWere,sendFriendRequest)
+router.post("/acceptFriendRequest/:requestId",authMiddelWere,acceptFriendRequest)
 
 module.exports = router;

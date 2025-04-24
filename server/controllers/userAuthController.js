@@ -6,7 +6,8 @@ const nodeMailer = require("nodemailer");
 const User = require("../models/userModel");
 const twilio = require("twilio");
 const BlacklistedToken = require("../models/BlacklistedToken");
-const ConnectionFilter = require("../models/connectionFilterModel")
+const ConnectionFilter = require("../models/connectionFilterModel");
+const FriendRequest = require("../models/friendRequestSchema")
 
 
 const transPorter = nodeMailer.createTransport({
@@ -46,7 +47,7 @@ exports.register = async (req, res) => {
         }
 
         console.log(req.file?.filename)
-        
+
         const otp = generateOtp();
         const otpExpires = Date.now() + 10 * 60 * 200;
 
@@ -86,7 +87,7 @@ exports.register = async (req, res) => {
             sucess: true,
             message: "OTP sent to your email and phone number",
         })
-        
+
 
     } catch (error) {
         console.error("Error in register:", error);
@@ -191,24 +192,22 @@ exports.ProfileCreation = async (req, res) => {
 
 
 
-
 exports.connectionFilter = async (req, res) => {
     try {
-        const { email, intrest, hashtag, location } = req.body;
+        const { email, intrest, hashtag, tag, location } = req.body;
 
         if (!email) {
             return res.status(400).json({
                 success: false,
-                message: "Please Enter Email"
+                message: "Please enter an email",
             });
         }
 
         const user = await User.findOne({ email });
-
         if (!user) {
             return res.status(404).json({
                 success: false,
-                message: "User not found"
+                message: "User not found",
             });
         }
 
@@ -217,17 +216,17 @@ exports.connectionFilter = async (req, res) => {
         let connection = await ConnectionFilter.findOne({ userId });
 
         if (!connection) {
-            // Create new connection filter
+            // Create a new connection filter
             connection = new ConnectionFilter({
                 userId,
                 intrestedFiled: intrest ? [{ intrested: intrest }] : [],
-                hashTagFiled: hashtag ? [{ hashTag: hashtag }] : [],
+                hashTagFiled: (hashtag && tag) ? [{ hashTag: hashtag, tag }] : [],
                 locationFiled: location ? [{ location }] : [],
             });
         } else {
-            // Update existing filters by pushing new values
+            // Update existing filter
             if (intrest) connection.intrestedFiled.push({ intrested: intrest });
-            if (hashtag) connection.hashTagFiled.push({ hashTag: hashtag });
+            if (hashtag && tag) connection.hashTagFiled.push({ hashTag: hashtag, tag });
             if (location) connection.locationFiled.push({ location });
         }
 
@@ -235,15 +234,15 @@ exports.connectionFilter = async (req, res) => {
 
         return res.status(200).json({
             success: true,
-            message: "Connection filter created successfully",
-            connection
+            message: "Connection filter saved successfully",
+            connection,
         });
 
     } catch (error) {
         console.error("Error in connectionFilter:", error);
         return res.status(500).json({
             success: false,
-            message: "Server error in connection filter controller"
+            message: "Server error in connection filter controller",
         });
     }
 };
@@ -519,18 +518,18 @@ exports.addAccount = async (req, res) => {
         const mainUserId = req.user.userId; // from JWT middleware
         const main = await User.findById(mainUserId)
 
-        
+
         const secondaryAccount = await User.findOne({ $or: [{ email }, { phoneNo }] });
         if (!secondaryAccount) {
             return res.status(404).json({ message: "Secondary account not found." });
         }
 
-       
+
         if (secondaryAccount._id.toString() === mainUserId) {
             return res.status(400).json({ message: "You cannot link your own account." });
         }
 
-      
+
         const isMatch = await bcrypt.compare(password, secondaryAccount.password);
         if (!isMatch) {
             return res.status(401).json({ message: "Invalid password for the secondary account." });
@@ -595,9 +594,9 @@ exports.approveLinkAccount = async (req, res) => {
 
         const user = await User.findById(userId);
 
-       
 
-        const otp = generateOtp(); 
+
+        const otp = generateOtp();
         const otpExpires = Date.now() + 10 * 60 * 1000; // 10 mins
 
         user.otp = otp;
@@ -612,7 +611,7 @@ exports.approveLinkAccount = async (req, res) => {
             html: `<p>Your OTP to confirm the account link: <b>${otp}</b></p>`
         });
 
-     
+
         await twilioClient.messages.create({
             body: `Your OTP for linking account: ${otp}`,
             from: process.env.TWILIO_PHONE_NUMBER,
@@ -634,26 +633,26 @@ exports.finalizeLinkAccount = async (req, res) => {
         const { userId, requesterId, otp } = req.body;
 
         const user = await User.findById(userId);
-       
 
-        if ( user.otp !== otp || Date.now() > user.otpExpires) {
+
+        if (user.otp !== otp || Date.now() > user.otpExpires) {
             return res.status(400).json({ message: "Invalid or expired OTP." });
         }
 
-      
+
         user.status = 'approved';
         user.otp = undefined;
         user.otpExpires = undefined;
         await user.save();
 
-       
+
         const mainUser = await User.findById(requesterId);
 
         mainUser.linkRequests.push({ requesterId: userId });
-        
+
         await mainUser.save();
 
-        res.status(200).json({ message: "Account successfully linked.",mainUser });
+        res.status(200).json({ message: "Account successfully linked.", mainUser });
 
     } catch (err) {
         console.error("Finalize Link Error:", err);
@@ -690,32 +689,306 @@ exports.rejectLinkAccount = async (req, res) => {
 
 
 exports.logoutUser = async (req, res) => {
-  try {
-    const token = req.header("Authorization"); // Bearer <token>
-    if (!token) return res.status(400).json({ message: "Token not provided." });
+    try {
+        const token = req.header("Authorization"); // Bearer <token>
+        if (!token) return res.status(400).json({ message: "Token not provided." });
 
-    const decoded = jwt.decode(token);
-    const expiresAt = new Date(decoded.exp * 1000); // JWT exp is in seconds
+        const decoded = jwt.decode(token);
+        const expiresAt = new Date(decoded.exp * 1000); // JWT exp is in seconds
 
-    const blacklisted = new BlacklistedToken({ token, expiresAt });
-    await blacklisted.save();
+        const blacklisted = new BlacklistedToken({ token, expiresAt });
+        await blacklisted.save();
 
-    const user = await User.findById(req.user.userId);
-    const {password} = req.body;
-    // if(user.password === )
-    const isMatch =  bcrypt.compare(user.password,password);
+        const user = await User.findById(req.user.userId);
+        const { password } = req.body;
+        // if(user.password === )
+        const isMatch = bcrypt.compare(user.password, password);
 
-    if(!isMatch){
-        return re.status(400).json({
-            sucess:false,
-            message:"user Password and input password is not match"
+        if (!isMatch) {
+            return re.status(400).json({
+                sucess: false,
+                message: "user Password and input password is not match"
+            })
+        }
+
+        return res.status(200).json({ message: "User logged out successfully." });
+
+    } catch (err) {
+        console.error("Logout Error:", err);
+        return res.status(500).json({ message: "Internal server error" });
+    }
+};
+
+exports.getMatchedIntrested = async (req, res) => {
+    try {
+        // Step 1: Find the current user
+        const user = await User.findById(req.user.userId);
+        if (!user) {
+            return res.status(404).json({
+                success: false,
+                message: "User not found",
+            });
+        }
+
+        // Step 2: Find the filter info of the user
+        const userFilter = await ConnectionFilter.findOne({ userId: user._id });
+        if (!userFilter) {
+            return res.status(400).json({
+                success: false,
+                message: "User's interest filter not found",
+            });
+        }
+
+        // Step 3: Extract user's interested fields
+        const userInterestedFields = userFilter.intrestedFiled.filter(field => field.intrested).map(field => field.intrested);
+
+        if (userInterestedFields.length === 0) {
+            return res.status(200).json({
+                success: true,
+                message: "No interests found for this user",
+                matchedUsers: [],
+            });
+        }
+
+        // Step 4: Find all users whose interests match
+        const matchedFilters = await ConnectionFilter.find({
+            userId: { $ne: user._id },
+            "intrestedFiled.intrested": { $in: userInterestedFields },
+        }).populate("userId"); // Populate full user details
+
+        return res.status(200).json({
+            success: true,
+            userInterestedFields,
+            matchedUsers: matchedFilters, // includes full userId info
+        });
+
+    } catch (error) {
+        console.error("Error in getMatchedIntrested:", error);
+        return res.status(500).json({
+            success: false,
+            message: "Internal server error in getMatchedIntrested",
+        });
+    }
+};
+
+
+
+exports.getHashTagContent = async (req, res) => {
+    try {
+        const user = await User.findById(req.user.userId);
+        if (!user) {
+            return res.status(400).json({
+                success: false,
+                message: "User not found",
+            });
+        }
+
+        const userFilter = await ConnectionFilter.findOne({ userId: user._id });
+        if (!userFilter) {
+            return res.status(400).json({
+                success: false,
+                message: "User's hashtag filter not found",
+            });
+        }
+
+        const userHashTags = userFilter.hashTagFiled
+            .filter(field => field.hashTag)
+            .map(field => field.hashTag);
+
+        if (userHashTags.length === 0) {
+            return res.status(200).json({
+                success: true,
+                message: "No hashtags found for this user",
+                tags: [],
+            });
+        }
+
+        // Find matching ConnectionFilters (excluding current user)
+        const matchedFilters = await ConnectionFilter.find({
+            userId: { $ne: user._id },
+            "hashTagFiled.hashTag": { $in: userHashTags },
+        });
+
+        // Extract only the tags from matched hashTagFiled
+        const matchedTags = matchedFilters.flatMap(filter =>
+            filter.hashTagFiled
+                .filter(field => userHashTags.includes(field.hashTag))
+                .map(field => field.tag)
+        );
+
+        // Optionally remove duplicate tags
+        const uniqueTags = [...new Set(matchedTags)];
+
+        return res.status(200).json({
+            success: true,
+            matchedTags: uniqueTags,
+        });
+
+    } catch (error) {
+        console.error("Error in getHashTagContent:", error);
+        return res.status(500).json({
+            success: false,
+            message: "Server error in getHashTagContent",
+        });
+    }
+};
+
+
+
+
+exports.getAllowLocation = async (req, res) => {
+    try {
+        const user = await User.findById(req.user.userId);
+
+        if (!user) {
+            return res.status(404).json({
+                success: false,
+                message: "User not found",
+            });
+        }
+
+        const userFilter = await ConnectionFilter.findOne({ userId: user._id });
+        if (!userFilter) {
+            return res.status(400).json({
+                success: false,
+                message: "User's Location filter not found",
+            });
+        }
+
+        const userLocation = userFilter.locationFiled.filter(field => field.location).map(field => field.location);
+
+
+        const matchedFilters = await ConnectionFilter.find({
+            userId: { $ne: user._id },
+            "locationFiled.location": { $in: userLocation },
+        }).populate("userId")
+
+
+        return res.status(200).json({
+            sucess: true,
+            matchedFilters,
+        })
+
+    } catch (error) {
+        console.log(error);
+        return res.status(500).json({
+            sucess: false,
+            message: "Error in getAllowLocations"
         })
     }
+}
 
-    return res.status(200).json({ message: "User logged out successfully." });
 
-  } catch (err) {
-    console.error("Logout Error:", err);
-    return res.status(500).json({ message: "Internal server error" });
-  }
-};
+
+exports.sendFriendRequest = async (req, res) => {
+    try {
+        const user = req.user.userId
+
+        const { reciverId } = req.params;
+
+        if (!reciverId) {
+            return res.status(400).json({
+                sucess: false,
+                message: "Please Provid InviteUserId"
+            })
+        }
+
+        const isExistingRequest = await FriendRequest.findOne({
+            sender: user,
+            receiver: reciverId,
+            status: "pending"
+        })
+
+        if (isExistingRequest) {
+            return res.status(400).json({
+                sucess: false,
+                message: "Friend Request Already Send"
+            })
+        }
+
+        const request = await FriendRequest.create({
+            sender: user,
+            receiver: reciverId
+        });
+
+        const receiverSocketId = global.onlineUsers.get(reciverId.toString());
+
+        if(receiverSocketId){
+            global.io.to(receiverSocketId).emit("Receive_friend_request",{
+                senderId:user,
+                requestId:request._id
+            })
+        }
+
+        return res.status(200).json({
+            sucess:true,
+            message:"Friend request sent"
+        })
+
+    } catch (error) {
+        console.log(error);
+        return res.status(500).json({
+            sucess: false,
+            message: "Error in inviteAFriend Route"
+        })
+    }
+}
+
+
+exports.acceptFriendRequest = async (req, res) => {
+    try {
+        const { requestId } = req.params;
+        const user = req.user.userId;
+
+        if (!requestId) {
+            return res.status(400).json({
+                success: false,
+                message: "Please provide requestId"
+            });
+        }
+
+        const request = await FriendRequest.findOne({sender:requestId});
+
+        if (!request) {
+            return res.status(404).json({
+                success: false,
+                message: "Friend request not found"
+            });
+        }
+
+        request.status = "accepted";
+        await request.save();
+
+        await User.findByIdAndUpdate(user, {
+            $addToSet: { userAllFriends: request.sender }
+        });
+
+        await User.findByIdAndUpdate(request.sender, {
+            $addToSet: { userAllFriends: user }
+        });
+
+        
+        const senderSocketId = global.onlineUsers.get(request.sender.toString());
+
+        if (senderSocketId) {
+            global.io.to(senderSocketId).emit("friend_request_accepted", {
+                friendId: user,
+            });
+        }
+
+        return res.status(200).json({
+            success: true,
+            message: "Friend request accepted"
+        });
+
+    } catch (error) {
+        console.error("Error in acceptFriendRequest:", error);
+        return res.status(500).json({
+            success: false,
+            message: "Error in acceptRequest controller"
+        });
+    }
+}
+
+
+

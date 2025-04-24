@@ -7,7 +7,7 @@ const userSchema = new mongoose.Schema({
         type: String,
         required: true,
         enum: ['male', 'female', 'other']
-    },    
+    },
     dateBirth: {
         type: String,
         required: true
@@ -39,20 +39,20 @@ const userSchema = new mongoose.Schema({
         // required: true,
         minlength: [6, 'Password must be at least 6 characters']
     },
-    profilePic:{
-        type:String,
+    profilePic: {
+        type: String,
         required: true
     },
-    otp:{
-        type:String,
+    otp: {
+        type: String,
     },
     otpExpires: {
         type: Date,
         default: Date.now,
     },
-    theme:{
-        type:String,
-        default:"light",
+    theme: {
+        type: String,
+        default: "light",
     },
     isVerified: {
         type: Boolean,
@@ -60,17 +60,22 @@ const userSchema = new mongoose.Schema({
     },
     linkRequests: [{
         requesterId: {
-          type: mongoose.Schema.Types.ObjectId,
-          ref:"User",
+            type: mongoose.Schema.Types.ObjectId,
+            ref: "User",
         },
         status: {
-          type: String,
-          enum: ['pending', 'approved', 'rejected'],
-          default: 'pending'
+            type: String,
+            enum: ['pending', 'approved', 'rejected'],
+            default: 'pending'
         },
         otp: String,
         otpExpires: Date
-      }]
+    }],
+
+    userAllFriends: [{
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "User",
+    }]
 
 })
 
