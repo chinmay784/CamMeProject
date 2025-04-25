@@ -18,16 +18,18 @@ const {
     getHashTagContent,
     getAllowLocation,
     sendFriendRequest,
-    acceptFriendRequest
+    acceptFriendRequest,
+    createPost
 } = require('../controllers/userAuthController');
 const { authMiddelWere } = require('../middelwere/authMiddelWere');
-const {upload} = require("../middelwere/multer");
+const {uploadd} = require("../middelwere/multer");
 const checkBlacklist = require('../middelwere/BlackListToken');
+const {upload} = require("../config/cloudinary")
 
 const router = express.Router();
 
 
-router.post('/register',upload.single("file"), register);
+router.post('/register',uploadd.single("file"), register);
 router.post("/verifyotp", otpVerify);
 router.post("/profileComplite", ProfileCreation);
 router.post("/login", login);
@@ -45,6 +47,7 @@ router.get("/getMatchIntrested",authMiddelWere,getMatchedIntrested);
 router.get("/getHashTagContent",authMiddelWere,getHashTagContent);
 router.get("/getLocation",authMiddelWere,getAllowLocation);
 router.post("/inviteAFriend/:reciverId",authMiddelWere,sendFriendRequest)
-router.post("/acceptFriendRequest/:requestId",authMiddelWere,acceptFriendRequest)
+router.post("/acceptFriendRequest/:requestId",authMiddelWere,acceptFriendRequest);
+router.post("/createpost",authMiddelWere,upload.single("image"),createPost);
 
 module.exports = router;

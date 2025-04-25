@@ -71,12 +71,32 @@ const userSchema = new mongoose.Schema({
         otp: String,
         otpExpires: Date
     }],
-
     userAllFriends: [{
         type: mongoose.Schema.Types.ObjectId,
         ref: "User",
-    }]
-
+    }],
+    coinWallet: {
+        tedGold: {
+            type: Number,
+            default: 0
+        },
+        tedSilver: {
+            type: Number,
+            default: 0
+        },
+        tedBronze: {
+            type: Number,
+            default: 0
+        },
+        tedBlack: {
+            type: Number,
+            default: 0
+        },
+        totalTedCoin:{
+            type:Number,
+            default:0,
+        },
+    },
 })
 
 

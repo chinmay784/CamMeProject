@@ -7,7 +7,9 @@ const User = require("../models/userModel");
 const twilio = require("twilio");
 const BlacklistedToken = require("../models/BlacklistedToken");
 const ConnectionFilter = require("../models/connectionFilterModel");
-const FriendRequest = require("../models/friendRequestSchema")
+const FriendRequest = require("../models/friendRequestSchema");
+const Postcreate = require("../models/PostModel");
+const cloudinary = require("cloudinary")
 
 
 const transPorter = nodeMailer.createTransport({
@@ -687,7 +689,6 @@ exports.rejectLinkAccount = async (req, res) => {
 
 
 
-
 exports.logoutUser = async (req, res) => {
     try {
         const token = req.header("Authorization"); // Bearer <token>
@@ -719,9 +720,9 @@ exports.logoutUser = async (req, res) => {
     }
 };
 
+
 exports.getMatchedIntrested = async (req, res) => {
     try {
-        // Step 1: Find the current user
         const user = await User.findById(req.user.userId);
         if (!user) {
             return res.status(404).json({
@@ -730,7 +731,7 @@ exports.getMatchedIntrested = async (req, res) => {
             });
         }
 
-        // Step 2: Find the filter info of the user
+
         const userFilter = await ConnectionFilter.findOne({ userId: user._id });
         if (!userFilter) {
             return res.status(400).json({
@@ -739,7 +740,6 @@ exports.getMatchedIntrested = async (req, res) => {
             });
         }
 
-        // Step 3: Extract user's interested fields
         const userInterestedFields = userFilter.intrestedFiled.filter(field => field.intrested).map(field => field.intrested);
 
         if (userInterestedFields.length === 0) {
@@ -750,7 +750,6 @@ exports.getMatchedIntrested = async (req, res) => {
             });
         }
 
-        // Step 4: Find all users whose interests match
         const matchedFilters = await ConnectionFilter.find({
             userId: { $ne: user._id },
             "intrestedFiled.intrested": { $in: userInterestedFields },
@@ -759,7 +758,7 @@ exports.getMatchedIntrested = async (req, res) => {
         return res.status(200).json({
             success: true,
             userInterestedFields,
-            matchedUsers: matchedFilters, // includes full userId info
+            matchedUsers: matchedFilters,
         });
 
     } catch (error) {
@@ -803,20 +802,17 @@ exports.getHashTagContent = async (req, res) => {
             });
         }
 
-        // Find matching ConnectionFilters (excluding current user)
         const matchedFilters = await ConnectionFilter.find({
             userId: { $ne: user._id },
             "hashTagFiled.hashTag": { $in: userHashTags },
         });
 
-        // Extract only the tags from matched hashTagFiled
         const matchedTags = matchedFilters.flatMap(filter =>
             filter.hashTagFiled
                 .filter(field => userHashTags.includes(field.hashTag))
                 .map(field => field.tag)
         );
 
-        // Optionally remove duplicate tags
         const uniqueTags = [...new Set(matchedTags)];
 
         return res.status(200).json({
@@ -913,16 +909,16 @@ exports.sendFriendRequest = async (req, res) => {
 
         const receiverSocketId = global.onlineUsers.get(reciverId.toString());
 
-        if(receiverSocketId){
-            global.io.to(receiverSocketId).emit("Receive_friend_request",{
-                senderId:user,
-                requestId:request._id
+        if (receiverSocketId) {
+            global.io.to(receiverSocketId).emit("Receive_friend_request", {
+                senderId: user,
+                requestId: request._id
             })
         }
 
         return res.status(200).json({
-            sucess:true,
-            message:"Friend request sent"
+            sucess: true,
+            message: "Friend request sent"
         })
 
     } catch (error) {
@@ -947,7 +943,7 @@ exports.acceptFriendRequest = async (req, res) => {
             });
         }
 
-        const request = await FriendRequest.findOne({sender:requestId});
+        const request = await FriendRequest.findOne({ sender: requestId });
 
         if (!request) {
             return res.status(404).json({
@@ -967,7 +963,7 @@ exports.acceptFriendRequest = async (req, res) => {
             $addToSet: { userAllFriends: user }
         });
 
-        
+
         const senderSocketId = global.onlineUsers.get(request.sender.toString());
 
         if (senderSocketId) {
@@ -992,3 +988,138 @@ exports.acceptFriendRequest = async (req, res) => {
 
 
 
+exports.createPost = async (req, res) => {
+    try {
+        const { descripition } = req.body;
+        const userId = req.user.userId;
+        const image = req.file?.path;
+
+        if (!image || !descripition) {
+            return res.status(400).json({
+                success: false,
+                message: "Please Provide All details",
+            });
+        }
+
+        const result = await cloudinary.uploader.upload(image, {
+            folder: "profile_pics",
+        });
+
+        const newPost = await Postcreate.create({
+            userId,
+            image: result.secure_url,
+            descripition,
+        });
+
+        const user = await User.findById(userId);
+
+        user.coinWallet.tedGold += 1;
+        user.coinWallet.tedSilver += 1;
+        user.coinWallet.tedBronze += 1;
+
+        let gold = user.coinWallet.tedGold;
+        let silver = user.coinWallet.tedSilver;
+        let bronze = user.coinWallet.tedBronze;
+
+        const totalCoin = Math.min(
+            Math.floor(gold / 75),
+            Math.floor(silver / 50),
+            Math.floor(bronze / 25)
+        );
+
+        const usedGold = totalCoin * 75;
+        const usedSilver = totalCoin * 50;
+        const usedBronze = totalCoin * 25;
+
+        gold -= usedGold;
+        silver -= usedSilver;
+        bronze -= usedBronze;
+
+        user.coinWallet.tedGold = gold;
+        user.coinWallet.tedSilver = silver;
+        user.coinWallet.tedBronze = bronze;
+        user.coinWallet.totalTedCoin = totalCoin;
+
+        await user.save();
+
+        return res.status(200).json({
+            success: true,
+            message: "Post created and coins awarded successfully",
+            postUrl: newPost.image,
+            coins: {
+                tedGold: gold,
+                tedSilver: silver,
+                tedBronze: bronze,
+                totalTedCoin: totalCoin,
+            },
+        });
+    } catch (error) {
+        console.log(error);
+        return res.status(500).json({
+            success: false,
+            message: "Error occurred in createPost",
+        });
+    }
+};
+
+
+exports.generateWhatsAppShareLink = async (req, res) => {
+    try {
+        const userId = req.user.userId;
+        const { postId } = req.params;
+
+        const post = await Postcreate.findById(postId).populate("userId", "name");
+        if (!post) {
+            return res.status(404).json({ success: false, message: "Post not found" });
+        }
+
+        const alreadyShared = post.shares.some(
+            (id) => id.toString() === userId
+        );
+        if (alreadyShared) {
+            return res.status(400).json({
+                success: false,
+                message: "You have already shared this post.",
+            });
+        }
+
+        post.shares.push(userId);
+        post.shareCount += 1;
+        await post.save();
+
+        const postOwner = await User.findById(post.userId._id);
+        if (postOwner) {
+            postOwner.coinWallet.tedGold += 1;
+            postOwner.coinWallet.tedSilver += 1;
+            postOwner.coinWallet.tedBronze += 1;
+
+            const { tedGold, tedSilver, tedBronze } = postOwner.coinWallet;
+
+            const totalTedCoin = Math.floor(
+                tedGold / 75 + tedSilver / 50 + tedBronze / 25
+            );
+
+            postOwner.coinWallet.totalTedCoin = totalTedCoin;
+
+            await postOwner.save();
+        }
+
+        const frontendPostUrl = `http://localhost:5000/api/v1/user/createpost/${post._id}`; 
+        const message = encodeURIComponent(
+            `Check out this post: ${frontendPostUrl}`
+        );
+        const whatsappLink = `https://wa.me/?text=${message}`;
+
+        return res.status(200).json({
+            success: true,
+            message: "WhatsApp share link generated",
+            whatsappLink,
+        });
+    } catch (err) {
+        console.error(err);
+        return res.status(500).json({
+            success: false,
+            message: "Server error while generating WhatsApp share link",
+        });
+    }
+};
