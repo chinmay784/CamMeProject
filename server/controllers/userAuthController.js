@@ -1104,7 +1104,7 @@ exports.generateWhatsAppShareLink = async (req, res) => {
             await postOwner.save();
         }
 
-        const frontendPostUrl = `http://localhost:5000/api/v1/user/createpost/${post._id}`; 
+        const frontendPostUrl = `http://localhost:4000/api/v1/user/createpost/${post._id}`; 
         const message = encodeURIComponent(
             `Check out this post: ${frontendPostUrl}`
         );
