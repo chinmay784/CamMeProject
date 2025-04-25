@@ -19,7 +19,10 @@ const {
     getAllowLocation,
     sendFriendRequest,
     acceptFriendRequest,
-    createPost
+    createPost,
+    generateWhatsAppShareLink,
+    giveTedBlackCoinToPost,
+    report
 } = require('../controllers/userAuthController');
 const { authMiddelWere } = require('../middelwere/authMiddelWere');
 const {uploadd} = require("../middelwere/multer");
@@ -49,5 +52,8 @@ router.get("/getLocation",authMiddelWere,getAllowLocation);
 router.post("/inviteAFriend/:reciverId",authMiddelWere,sendFriendRequest)
 router.post("/acceptFriendRequest/:requestId",authMiddelWere,acceptFriendRequest);
 router.post("/createpost",authMiddelWere,upload.single("image"),createPost);
+router.post("/sharePost",authMiddelWere,generateWhatsAppShareLink);
+router.post("/givetedBlackCoin/:postId",authMiddelWere,giveTedBlackCoinToPost);
+router.post("/reportPost/:postId",authMiddelWere,report);
 
 module.exports = router;

@@ -10,7 +10,7 @@ const ConnectionFilter = require("../models/connectionFilterModel");
 const FriendRequest = require("../models/friendRequestSchema");
 const Postcreate = require("../models/PostModel");
 const cloudinary = require("cloudinary")
-
+const mongoose = require("mongoose");
 
 const transPorter = nodeMailer.createTransport({
     service: "gmail",
@@ -1104,7 +1104,7 @@ exports.generateWhatsAppShareLink = async (req, res) => {
             await postOwner.save();
         }
 
-        const frontendPostUrl = `http://localhost:5000/api/v1/user/createpost/${post._id}`; 
+        const frontendPostUrl = `http://localhost:5000/api/v1/user/createpost/${post._id}`;
         const message = encodeURIComponent(
             `Check out this post: ${frontendPostUrl}`
         );
@@ -1123,3 +1123,155 @@ exports.generateWhatsAppShareLink = async (req, res) => {
         });
     }
 };
+
+
+
+exports.giveTedBlackCoinToPost = async (req, res) => {
+    try {
+        const currentUserId = req.user.userId; 
+        const { postId } = req.params;
+
+        console.log("Received postId:", postId);
+
+
+        const post = await Postcreate.findOne({ _id: postId });
+
+        if (!post) {
+            return res.status(404).json({
+                success: false,
+                message: "Post not found",
+            });
+        }
+
+
+
+        const giver = await User.findById(currentUserId);
+        const receiver = await User.findById(post.userId);
+
+        if (!giver || !receiver) {
+            return res.status(404).json({
+                success: false,
+                message: "User not found",
+            });
+        }
+
+        if (
+            giver.coinWallet.tedGold < 1 ||
+            giver.coinWallet.tedSilver < 2 ||
+            giver.coinWallet.tedBronze < 3
+        ) {
+            return res.status(400).json({
+                success: false,
+                message: "Insufficient coins to give TedBlack coin",
+            });
+        }
+
+        giver.coinWallet.tedGold -= 1;
+        giver.coinWallet.tedSilver -= 2;
+        giver.coinWallet.tedBronze -= 3;
+
+        giver.coinWallet.tedBlack += 1;
+
+    
+        const calculateTotalTedCoin = (wallet) => {
+            return Math.floor(
+                wallet.tedGold / 75 +
+                wallet.tedSilver / 50 +
+                wallet.tedBronze / 25
+            );
+        };
+
+        giver.coinWallet.totalTedCoin = calculateTotalTedCoin(giver.coinWallet);
+        receiver.coinWallet.totalTedCoin = calculateTotalTedCoin(receiver.coinWallet);
+
+        await giver.save();
+        await receiver.save();
+
+        return res.status(200).json({
+            success: true,
+            message: "TedBlack coin successfully given to post owner",
+            giverWallet: giver.coinWallet,
+        });
+
+    } catch (err) {
+        console.error(err);
+        return res.status(500).json({
+            success: false,
+            message: "Server error while processing TedBlack coin reward",
+        });
+    }
+};
+
+
+
+
+exports.report = async (req, res) => {
+    try {
+        const currentUserId = req.user.userId; // The user who is giving the TedBlack coin
+        const { postId } = req.params;
+
+
+        const post = await Postcreate.findOne({ _id: postId });
+
+        if (!post) {
+            return res.status(404).json({
+                success: false,
+                message: "Post not found",
+            });
+        }
+
+        const giver = await User.findById(currentUserId);
+        const receiver = await User.findById(post.userId);
+
+        if (!giver || !receiver) {
+            return res.status(404).json({
+                success: false,
+                message: "User not found",
+            });
+        }
+
+        if (
+            giver.coinWallet.tedGold < 1 ||
+            giver.coinWallet.tedSilver < 2 ||
+            giver.coinWallet.tedBronze < 3
+        ) {
+            return res.status(400).json({
+                success: false,
+                message: "Insufficient coins to give TedBlack coin",
+            });
+        }
+
+        giver.coinWallet.tedGold -= 1;
+        giver.coinWallet.tedSilver -= 1;
+        giver.coinWallet.tedBronze -= 1;
+
+        giver.coinWallet.tedBlack += 1;
+
+        const calculateTotalTedCoin = (wallet) => {
+            return Math.floor(
+                wallet.tedGold / 75 +
+                wallet.tedSilver / 50 +
+                wallet.tedBronze / 25
+            );
+        };
+
+        giver.coinWallet.totalTedCoin = calculateTotalTedCoin(giver.coinWallet);
+        receiver.coinWallet.totalTedCoin = calculateTotalTedCoin(receiver.coinWallet);
+
+        await giver.save();
+        await receiver.save();
+
+        return res.status(200).json({
+            success: true,
+            message: "reporte the post",
+            giverWallet: giver.coinWallet,
+        });
+
+    } catch (error) {
+        console.log("error");
+        return res.status(500).json({
+            success: false,
+            message: "Server error while processing report",
+        })
+    }
+}
