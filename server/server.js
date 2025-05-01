@@ -67,5 +67,5 @@ app.use("/api/v1/user", authRoutes);
 
 server.listen(PORT, () => {
     console.log(`Server is running at http://localhost:${PORT}`);
-    console.log(`Api Docs avaliable  at http://localhost:${PORT}`);
+    console.log(`Api Docs avaliable  at http://localhost:${PORT}/api-docs`);
 });
