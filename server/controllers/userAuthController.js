@@ -11,6 +11,7 @@ const FriendRequest = require("../models/friendRequestSchema");
 const Postcreate = require("../models/PostModel");
 const cloudinary = require("cloudinary")
 const mongoose = require("mongoose");
+const Moment = require("../models/momentSchema")
 
 const transPorter = nodeMailer.createTransport({
     service: "gmail",
@@ -990,55 +991,60 @@ exports.acceptFriendRequest = async (req, res) => {
 
 exports.createPost = async (req, res) => {
     try {
-        const { descripition } = req.body;
+        const { description, visibility } = req.body;  // Fixed spelling
         const userId = req.user.userId;
         const image = req.file?.path;
 
-        if (!image || !descripition) {
+        // Validate required fields
+        if (!description || !visibility) {
             return res.status(400).json({
                 success: false,
-                message: "Please Provide All details",
+                message: "Description and visibility are required.",
             });
         }
 
-        const result = await cloudinary.uploader.upload(image, {
-            folder: "profile_pics",
-        });
+        if (!['public', 'private'].includes(visibility)) {
+            return res.status(400).json({
+                success: false,
+                message: "Visibility must be either 'public' or 'private'.",
+            });
+        }
 
+        let imageUrl = null;
+
+        // Upload image if present
+        if (image) {
+            const result = await cloudinary.uploader.upload(image, {
+                folder: "profile_pics", // more appropriate than "profile_pics"
+            });
+            imageUrl = result.secure_url;
+        }
+
+        // Create post
         const newPost = await Postcreate.create({
             userId,
-            image: result.secure_url,
-            descripition,
+            image: imageUrl,
+            description,
+            visibility,
         });
 
+        // Update coins
         const user = await User.findById(userId);
-
         user.coinWallet.tedGold += 1;
         user.coinWallet.tedSilver += 1;
         user.coinWallet.tedBronze += 1;
 
-        let gold = user.coinWallet.tedGold;
-        let silver = user.coinWallet.tedSilver;
-        let bronze = user.coinWallet.tedBronze;
-
+        const { tedGold, tedSilver, tedBronze } = user.coinWallet;
         const totalCoin = Math.min(
-            Math.floor(gold / 75),
-            Math.floor(silver / 50),
-            Math.floor(bronze / 25)
+            Math.floor(tedGold / 75),
+            Math.floor(tedSilver / 50),
+            Math.floor(tedBronze / 25)
         );
 
-        const usedGold = totalCoin * 75;
-        const usedSilver = totalCoin * 50;
-        const usedBronze = totalCoin * 25;
-
-        gold -= usedGold;
-        silver -= usedSilver;
-        bronze -= usedBronze;
-
-        user.coinWallet.tedGold = gold;
-        user.coinWallet.tedSilver = silver;
-        user.coinWallet.tedBronze = bronze;
-        user.coinWallet.totalTedCoin = totalCoin;
+        user.coinWallet.tedGold -= totalCoin * 75;
+        user.coinWallet.tedSilver -= totalCoin * 50;
+        user.coinWallet.tedBronze -= totalCoin * 25;
+        user.coinWallet.totalTedCoin += totalCoin;
 
         await user.save();
 
@@ -1046,15 +1052,16 @@ exports.createPost = async (req, res) => {
             success: true,
             message: "Post created and coins awarded successfully",
             postUrl: newPost.image,
+            visibility: newPost.visibility,
             coins: {
-                tedGold: gold,
-                tedSilver: silver,
-                tedBronze: bronze,
-                totalTedCoin: totalCoin,
+                tedGold: user.coinWallet.tedGold,
+                tedSilver: user.coinWallet.tedSilver,
+                tedBronze: user.coinWallet.tedBronze,
+                totalTedCoin: user.coinWallet.totalTedCoin,
             },
         });
     } catch (error) {
-        console.log(error);
+        console.error("Error in createPost:", error);
         return res.status(500).json({
             success: false,
             message: "Error occurred in createPost",
@@ -1063,66 +1070,113 @@ exports.createPost = async (req, res) => {
 };
 
 
-exports.generateWhatsAppShareLink = async (req, res) => {
+
+exports.generateAndTrackShare = async (req, res) => {
     try {
-        const userId = req.user.userId;
         const { postId } = req.params;
+        const userId = req.user.userId;
 
-        const post = await Postcreate.findById(postId).populate("userId", "name");
-        if (!post) {
-            return res.status(404).json({ success: false, message: "Post not found" });
-        }
-
-        const alreadyShared = post.shares.some(
-            (id) => id.toString() === userId
-        );
-        if (alreadyShared) {
-            return res.status(400).json({
+        const post = await Postcreate.findById(postId).populate("userId"); // assuming post has a userId (post owner)
+        if (!post || post.visibility !== 'public') {
+            return res.status(404).json({
                 success: false,
-                message: "You have already shared this post.",
+                message: "Post not found or not public",
             });
         }
 
+        // Check if already shared
+        if (post.shares.includes(userId)) {
+            const postUrl = `https://yourfrontenddomain.com/posts/${postId}`;
+            const encodedUrl = encodeURIComponent(postUrl);
+            return res.status(200).json({
+                success: true,
+                message: "Already shared",
+                alreadyShared: true,
+                shareLinks: {
+                    facebook: `https://www.facebook.com/sharer/sharer.php?u=${encodedUrl}`,
+                    twitter: `https://twitter.com/intent/tweet?url=${encodedUrl}&text=Check%20this%20out!`,
+                    whatsapp: `https://api.whatsapp.com/send?text=${encodedUrl}`,
+                    linkedin: `https://www.linkedin.com/shareArticle?url=${encodedUrl}&title=Awesome%20Post`,
+                    telegram: `https://t.me/share/url?url=${encodedUrl}`,
+                    email: `mailto:?subject=Check%20this%20post&body=${encodedUrl}`,
+                    copyLink: postUrl
+                }
+            });
+        }
+
+        // Update Post share
         post.shares.push(userId);
         post.shareCount += 1;
         await post.save();
 
-        const postOwner = await User.findById(post.userId._id);
-        if (postOwner) {
-            postOwner.coinWallet.tedGold += 1;
-            postOwner.coinWallet.tedSilver += 1;
-            postOwner.coinWallet.tedBronze += 1;
+        // Update sharing user (who shared the post)
+        const user = await User.findById(userId);
+        user.coinWallet.tedGold += 1;
+        user.coinWallet.tedSilver += 1;
+        user.coinWallet.tedBronze += 1;
 
-            const { tedGold, tedSilver, tedBronze } = postOwner.coinWallet;
+        // Reward the original post owner
+        const postOwner = post.userId;
+        const { tedGold, tedSilver, tedBronze } = postOwner.coinWallet;
 
-            const totalTedCoin = Math.floor(
-                tedGold / 75 + tedSilver / 50 + tedBronze / 25
-            );
-
-            postOwner.coinWallet.totalTedCoin = totalTedCoin;
-
-            await postOwner.save();
-        }
-
-        const frontendPostUrl = `http://localhost:5000/api/v1/user/createpost/${post._id}`;
-        const message = encodeURIComponent(
-            `Check out this post: ${frontendPostUrl}`
+        const totalTedCoin = Math.floor(
+            tedGold / 75 + tedSilver / 50 + tedBronze / 25
         );
-        const whatsappLink = `https://wa.me/?text=${message}`;
+
+        postOwner.coinWallet.totalTedCoin = totalTedCoin;
+        await postOwner.save();
+
+        // Convert coins for current user who shared
+        const tg = user.coinWallet.tedGold;
+        const ts = user.coinWallet.tedSilver;
+        const tb = user.coinWallet.tedBronze;
+
+        const totalCoin = Math.min(
+            Math.floor(tg / 75),
+            Math.floor(ts / 50),
+            Math.floor(tb / 25)
+        );
+
+        user.coinWallet.tedGold -= totalCoin * 75;
+        user.coinWallet.tedSilver -= totalCoin * 50;
+        user.coinWallet.tedBronze -= totalCoin * 25;
+        user.coinWallet.totalTedCoin += totalCoin;
+
+        await user.save();
+
+        const postUrl = `https://yourfrontenddomain.com/posts/${postId}`;
+        const encodedUrl = encodeURIComponent(postUrl);
 
         return res.status(200).json({
             success: true,
-            message: "WhatsApp share link generated",
-            whatsappLink,
+            message: "Post shared successfully, coins awarded",
+            shareLinks: {
+                facebook: `https://www.facebook.com/sharer/sharer.php?u=${encodedUrl}`,
+                twitter: `https://twitter.com/intent/tweet?url=${encodedUrl}&text=Check%20this%20out!`,
+                whatsapp: `https://api.whatsapp.com/send?text=${encodedUrl}`,
+                linkedin: `https://www.linkedin.com/shareArticle?url=${encodedUrl}&title=Awesome%20Post`,
+                telegram: `https://t.me/share/url?url=${encodedUrl}`,
+                email: `mailto:?subject=Check%20this%20post&body=${encodedUrl}`,
+                copyLink: postUrl
+            },
+            coins: {
+                tedGold: user.coinWallet.tedGold,
+                tedSilver: user.coinWallet.tedSilver,
+                tedBronze: user.coinWallet.tedBronze,
+                totalTedCoin: user.coinWallet.totalTedCoin
+            }
         });
-    } catch (err) {
-        console.error(err);
+
+    } catch (error) {
+        console.error("Error in generateAndTrackShare:", error);
         return res.status(500).json({
             success: false,
-            message: "Server error while generating WhatsApp share link",
+            message: "Server error while sharing the post"
         });
     }
 };
+
+
 
 
 
@@ -1275,3 +1329,46 @@ exports.report = async (req, res) => {
         })
     }
 }
+<<<<<<< HEAD
+======= 
+
+
+
+
+exports.createMoment = async (req, res) => {
+    try {
+        const { descripition } = req.body;
+        const userId = req.user.userId;
+        const image = req.file?.path;
+
+        if (!image || !descripition) {
+            return res.status(400).json({
+                success: false,
+                message: "Image and description are required",
+            });
+        }
+
+        const result = await cloudinary.uploader.upload(image, {
+            folder: "profile_pics",
+        });
+
+        const newMoment = await Moment.create({
+            userId,
+            image: result.secure_url,
+            descripition,
+        });
+
+        return res.status(201).json({
+            success: true,
+            message: "Moment created successfully and will expire in 24 hours",
+            moment: newMoment
+        });
+    } catch (error) {
+        console.error("Error in createMoment:", error);
+        return res.status(500).json({
+            success: false,
+            message: "Server error while creating moment",
+        });
+    }
+};
+>>>>>>> f62ea50 (ExtraAddOn)

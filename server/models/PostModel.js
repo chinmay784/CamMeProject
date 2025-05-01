@@ -7,9 +7,9 @@ const postSchemsa = new mongoose.Schema({
     },
     image: {
         type: String,
-        required: true,
+        required: false,
     },
-    descripition: {
+    description: {
         type: String,
         required: true,
     },
@@ -43,6 +43,11 @@ const postSchemsa = new mongoose.Schema({
             ref: "User",
         }
     ],
+    visibility: {
+        type: String,
+        enum: ['public', 'private'],
+        default: 'public'
+    },
 });
 
 module.exports = mongoose.model("Postcreate", postSchemsa);

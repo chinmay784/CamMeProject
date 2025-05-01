@@ -4,9 +4,10 @@ dotenv.config();
 const cors = require('cors');
 const http = require('http');
 const { Server } = require('socket.io');
-
 const authRoutes = require("./routes/userAuthRoutes");
 const { dbConnect } = require('./dataBase/db');
+
+const swaggerSetup = require('./swagger');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -50,11 +51,13 @@ io.on("connection", (socket) => {
 app.use(cors({ origin: "*", credentials: true }));
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
+swaggerSetup(app);
 
 dbConnect();
 
 app.use("/api/v1/user", authRoutes);
 
 server.listen(PORT, () => {
-    console.log(`Server is running on port ${PORT}`);
+    console.log(`Server is running at http://localhost:${PORT}`);
+    console.log(`Api Docs avaliable  at http://localhost:${PORT}/api-docs`);
 });
