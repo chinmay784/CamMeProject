@@ -69,5 +69,5 @@ app.get("/", (req, res) => {
 
 server.listen(PORT, () => {
     console.log(`Server is running at http://localhost:${PORT}`);
-    console.log(`Api Docs avaliable  at http://localhost:${PORT}/api-docs`);
+    console.log(`Api Docs avaliable  at http://localhost:${PORT}`);
 });
