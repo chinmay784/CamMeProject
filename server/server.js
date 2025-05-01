@@ -6,7 +6,7 @@ const http = require('http');
 const { Server } = require('socket.io');
 const authRoutes = require("./routes/userAuthRoutes");
 const { dbConnect } = require('./dataBase/db');
-
+const mongoose = require('mongoose');
 const swaggerSetup = require('./swagger');
 
 const app = express();
@@ -23,6 +23,7 @@ const io = new Server(server, {
     }
 });
 
+console.log(process.env.MONGO_URI)
 
 global.io = io;
 global.onlineUsers = new Map();
@@ -53,7 +54,13 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 swaggerSetup(app);
 
-dbConnect();
+// dbConnect();
+mongoose.connect(process.env.MONGO_URI).then(() => {
+        console.log("MongoDB Connected");
+    })
+    .catch((err) => {
+        console.log("MongoDB Connection Error: ", err);
+    });
 
 app.use("/api/v1/user", authRoutes);
 
