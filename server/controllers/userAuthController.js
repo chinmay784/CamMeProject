@@ -53,11 +53,7 @@ exports.register = async (req, res) => {
         const otp = generateOtp();
         const otpExpires = Date.now() + 10 * 60 * 200;
 
-       const file = req.file?.path;
-
-        const result = await cloudinary.uploader.upload(file, {
-            folder: "profile_pics",
-        });
+        // const {path} = req.file
 
         user = new User({
             gender,
@@ -1108,8 +1104,7 @@ exports.generateWhatsAppShareLink = async (req, res) => {
             await postOwner.save();
         }
 
-
-        const frontendPostUrl = `http://localhost:4000/api/v1/user/createpost/${post._id}`;
+        const frontendPostUrl = `http://localhost:5000/api/v1/user/createpost/${post._id}`;
         const message = encodeURIComponent(
             `Check out this post: ${frontendPostUrl}`
         );
@@ -1133,7 +1128,7 @@ exports.generateWhatsAppShareLink = async (req, res) => {
 
 exports.giveTedBlackCoinToPost = async (req, res) => {
     try {
-        const currentUserId = req.user.userId; 
+        const currentUserId = req.user.userId;
         const { postId } = req.params;
 
         console.log("Received postId:", postId);
@@ -1177,7 +1172,7 @@ exports.giveTedBlackCoinToPost = async (req, res) => {
 
         giver.coinWallet.tedBlack += 1;
 
-    
+
         const calculateTotalTedCoin = (wallet) => {
             return Math.floor(
                 wallet.tedGold / 75 +
