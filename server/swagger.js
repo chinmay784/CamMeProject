@@ -57,5 +57,5 @@ const swaggerSpec = swaggerJsDoc(options);
 
 module.exports = (app) => {
     // Serve swagger docs the way you like (Recommendation: swagger-tools)
-    app.use('/', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
+    app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
 }
