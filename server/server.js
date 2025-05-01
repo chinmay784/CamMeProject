@@ -10,7 +10,7 @@ const mongoose = require('mongoose');
 const swaggerSetup = require('./swagger');
 
 const app = express();
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 4000;
 
 const server = http.createServer(app);
 
@@ -62,6 +62,10 @@ mongoose.connect("mongodb+srv://chinmaypuhan420:IbKYdUs7sysN51eZ@first.zyjwy2o.m
     });
 
 app.use("/api/v1/user", authRoutes);
+
+app.get("/", (req, res) => {
+    res.send("Server is running");
+});
 
 server.listen(PORT, () => {
     console.log(`Server is running at http://localhost:${PORT}`);
