@@ -1329,8 +1329,7 @@ exports.report = async (req, res) => {
         })
     }
 }
-<<<<<<< HEAD
-======= 
+
 
 
 
@@ -1371,4 +1370,3 @@ exports.createMoment = async (req, res) => {
         });
     }
 };
->>>>>>> f62ea50 (ExtraAddOn)
