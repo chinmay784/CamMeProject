@@ -1,6 +1,6 @@
-const express = require('express');
 const dotenv = require('dotenv');
 dotenv.config();
+const express = require('express');
 const cors = require('cors');
 const http = require('http');
 const { Server } = require('socket.io');
@@ -23,7 +23,6 @@ const io = new Server(server, {
     }
 });
 
-console.log(process.env.MONGO_URI)
 
 global.io = io;
 global.onlineUsers = new Map();
@@ -55,7 +54,7 @@ app.use(express.urlencoded({ extended: false }));
 swaggerSetup(app);
 
 // dbConnect();
-mongoose.connect(process.env.MONGO_URI).then(() => {
+mongoose.connect("mongodb+srv://chinmaypuhan420:IbKYdUs7sysN51eZ@first.zyjwy2o.mongodb.net/Backend_1").then(() => {
         console.log("MongoDB Connected");
     })
     .catch((err) => {
