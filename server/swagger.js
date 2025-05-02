@@ -10,33 +10,7 @@ const swaggerDefinition = {
         description: 'API documentation ',
     },
 
-    components: {
-        securitySchemes: {
-            bearerAuth: {
-                type: "http",
-                scheme: "bearer",
-                bearerFormat: "JWT",
-            },
-        },
-    },
-    security: [
-        {
-            bearerAuth: [],
-        },
-    ], components: {
-        securitySchemes: {
-            bearerAuth: {
-                type: "http",
-                scheme: "bearer",
-                bearerFormat: "JWT",
-            },
-        },
-    },
-    security: [
-        {
-            bearerAuth: [],
-        },
-    ],
+    
     servers: [
         {
             url: 'https://cammeproject-3.onrender.com/api/v1',
